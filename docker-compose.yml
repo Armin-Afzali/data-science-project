@@ -1,0 +1,137 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - fraud-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - fraud-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command: |
+      "
+      echo 'Creating Kafka topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic bank_transactions --partitions 2 --replication-factor 1
+      echo 'Topics created!'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    networks:
+      - fraud-network
+
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+    networks:
+      - fraud-network
+    volumes:
+      - ./spark-processor:/app:Z
+      - ./data:/data:Z
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: spark-worker
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+    networks:
+      - fraud-network
+    volumes:
+      - ./spark-processor:/app:Z
+      - ./data:/data:Z
+
+  kafka-producer:
+    build:
+      context: ./kafka-producer
+      dockerfile: Dockerfile
+    container_name: kafka-producer
+    user: root
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: bank_transactions
+      DATASET_PATH: /data/creditcard.csv
+    volumes:
+      - ./data:/data:Z
+    networks:
+      - fraud-network
+    restart: on-failure
+
+  spark-processor:
+    image: apache/spark:3.5.0
+    container_name: spark-processor
+    user: root
+    ports:
+      - "4040:4040" 
+    depends_on:
+      - spark-master
+      - kafka-init
+    command: >
+      /opt/spark/bin/spark-submit
+      --master local[*]
+      --jars /jars/spark-sql-kafka-0-10_2.12-3.5.0.jar,/jars/kafka-clients-3.4.1.jar,/jars/spark-token-provider-kafka-0-10_2.12-3.5.0.jar,/jars/commons-pool2-2.11.1.jar
+      /app/processor.py
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - ./spark-processor:/app:Z
+      - ./data:/data:Z
+      - ./spark-jars:/jars:Z
+    networks:
+      - fraud-network
+    restart: on-failure
+
+networks:
+  fraud-network:
+    driver: bridge
