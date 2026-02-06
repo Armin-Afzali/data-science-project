@@ -146,6 +146,7 @@ Reads the creditcard.csv dataset and streams transactions to Kafka with the foll
 Processes the stream with multiple real-time analyses:
 
 #### Transaction Categorization
+
 | Amount | Category |
 |--------|----------|
 | > $500 | **Macro** |
@@ -153,11 +154,13 @@ Processes the stream with multiple real-time analyses:
 | $20 - $500 | **Normal** |
 
 #### Blacklist Detection
+
 - Maintains a blacklist DataFrame containing `User_Hacker`
 - Performs LEFT JOIN with live stream
 - Marks matched users as `BLOCKED`
 
 #### Bot Detection (Windowed Analysis)
+
 - **Window Duration**: 10 seconds (sliding, 5-second intervals)
 - **Threshold**: More than 4 transactions
 - **Alert**: Users exceeding threshold flagged as `BOT_DETECTED`
@@ -176,6 +179,7 @@ The processor outputs four concurrent streaming queries:
 ### Sample Output
 
 **Producer Log:**
+
 ```
 ✓ Connected to Kafka at kafka:29092
 🚀 Starting transaction stream...
@@ -186,6 +190,7 @@ The processor outputs four concurrent streaming queries:
 ```
 
 **Bot Detection:**
+
 ```
 +-------------------+-------------------+--------+-----------------+------------+
 |window_start       |window_end         |User_ID |transaction_count|Alert_Status|
@@ -195,6 +200,7 @@ The processor outputs four concurrent streaming queries:
 ```
 
 **Summary Statistics:**
+
 ```
 +------------------+-----------+-----------+------------+-------------+-----------+----------+
 |total_transactions|macro_count|micro_count|normal_count|blocked_count|fraud_count|avg_amount|
@@ -215,6 +221,7 @@ The processor outputs four concurrent streaming queries:
 ### Tuning Parameters
 
 **Producer (`producer.py`):**
+
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `BOT_PROBABILITY` | 0.02 (2%) | Chance of bot simulation |
@@ -222,6 +229,7 @@ The processor outputs four concurrent streaming queries:
 | `SLEEP_MIN/MAX` | 0.05-0.2s | Delay range between records |
 
 **Processor (`processor.py`):**
+
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `BOT_WINDOW_DURATION` | 10 seconds | Window for bot detection |
@@ -232,6 +240,7 @@ The processor outputs four concurrent streaming queries:
 ## 🔍 Monitoring
 
 ### View Kafka Topics
+
 ```bash
 # List topics
 podman exec -it kafka kafka-topics --list --bootstrap-server localhost:9092
@@ -244,7 +253,9 @@ podman exec -it kafka kafka-console-consumer \
 ```
 
 ### Spark UI
-Access at **http://localhost:8080** to monitor:
+
+Access at **<http://localhost:8080>** to monitor:
+
 - Active streaming jobs
 - Processing rates
 - Worker status
@@ -261,6 +272,7 @@ Access at **http://localhost:8080** to monitor:
 | Producer exits immediately | Check dataset exists: `ls kafka-producer/creditcard.csv` |
 
 ### Useful Commands
+
 ```bash
 # Restart a specific service
 podman-compose restart spark-processor
