@@ -307,13 +307,3 @@ Uses the [Credit Card Fraud Detection Dataset](https://www.kaggle.com/mlg-ulb/cr
 | Spark Structured Streaming | 3.5.0 | Real-time data processing |
 | Python | 3.10 | Producer and processor scripts |
 | Podman/Docker Compose | Latest | Container orchestration |
-
-## 📝 License
-
-This project is for educational purposes - Big Data Analytics Course.
-
----
-
-**Course**: Streaming Data Processing  
-**Project**: Real-Time Fraud Detection Pipeline  
-**Date**: 2025
